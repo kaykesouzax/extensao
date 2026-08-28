@@ -81,6 +81,8 @@
 
   <div class="card hidden" id="cardAcoes">
     <button id="btnEscanear">🔍 Escanear conversa</button>
+    <div style="height:8px;"></div>
+    <button id="btnAtualizar">🔄 Atualizar lista</button>
   </div>
 
   <div class="card hidden" id="cardLista">
@@ -127,6 +129,7 @@
   const cardLista = document.getElementById('cardLista');
   const listaDocs = document.getElementById('listaDocs');
   const btnEscanear = document.getElementById('btnEscanear');
+  const btnAtualizar = document.getElementById('btnAtualizar');
   const btnIniciar = document.getElementById('btnIniciar');
   const modalAviso = document.getElementById('modalAviso');
 
@@ -283,9 +286,17 @@
     conn.send({ tipo: 'escanear' });
     // 50 anexos podem levar bem mais que alguns segundos pra baixar —
     // esse timeout é só cosmético (volta o texto do botão), não afeta o
-    // escaneamento em si nem a lista, que atualiza sozinha quando os
-    // dados chegam.
+    // escaneamento em si.
     setTimeout(() => (btnEscanear.textContent = '🔍 Escanear conversa'), 15000);
+    // Puxada de segurança: pede o estado atual direto (não depende de
+    // nenhum timer/push do lado do PC, que pode travar se a aba dele
+    // ficar em segundo plano durante o escaneamento). Cobre o caso de
+    // ter perdido alguma atualização no meio do caminho.
+    setTimeout(() => conn?.send({ tipo: 'solicitarEstado' }), 9000);
+  });
+
+  btnAtualizar.addEventListener('click', () => {
+    conn?.send({ tipo: 'solicitarEstado' });
   });
 
   btnIniciar.addEventListener('click', () => {
