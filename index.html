@@ -54,6 +54,17 @@
     background: var(--gray-50); color: var(--black); padding: 0 10px;
   }
   .doc-row.unclassified select { border-color: var(--warn); background: var(--warn-soft); }
+  .conversa-row {
+    display: flex; align-items: center; justify-content: space-between; padding: 12px 4px;
+    border-bottom: 1px solid var(--gray-100); cursor: pointer;
+  }
+  .conversa-row:last-child { border-bottom: none; }
+  .conversa-row:active { background: var(--gray-50); }
+  .conversa-nome { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conversa-badge {
+    background: var(--accent); color: #062420; font-size: 11px; font-weight: 700;
+    border-radius: 10px; padding: 1px 7px; margin-left: 8px; flex-shrink: 0;
+  }
   .doc-row-actions { display: flex; gap: 8px; margin-top: 8px; }
   .doc-row-actions button { height: 34px; font-size: 12.5px; }
   .hidden { display: none !important; }
@@ -83,6 +94,15 @@
     <button id="btnEscanear">🔍 Escanear conversa</button>
     <div style="height:8px;"></div>
     <button id="btnAtualizar">🔄 Atualizar lista</button>
+    <div style="height:8px;"></div>
+    <button id="btnTrocarConversa">📂 Trocar conversa</button>
+  </div>
+
+  <div class="card hidden" id="cardConversas">
+    <div class="status" id="statusConversas" style="margin-bottom:10px;">Carregando conversas...</div>
+    <div id="listaConversas"></div>
+    <div style="height:8px;"></div>
+    <button id="btnFecharConversas">Cancelar</button>
   </div>
 
   <div class="card hidden" id="cardLista">
@@ -130,6 +150,11 @@
   const listaDocs = document.getElementById('listaDocs');
   const btnEscanear = document.getElementById('btnEscanear');
   const btnAtualizar = document.getElementById('btnAtualizar');
+  const btnTrocarConversa = document.getElementById('btnTrocarConversa');
+  const cardConversas = document.getElementById('cardConversas');
+  const statusConversas = document.getElementById('statusConversas');
+  const listaConversasEl = document.getElementById('listaConversas');
+  const btnFecharConversas = document.getElementById('btnFecharConversas');
   const btnIniciar = document.getElementById('btnIniciar');
   const modalAviso = document.getElementById('modalAviso');
 
@@ -231,10 +256,28 @@
       return;
     }
 
+    if (msg.tipo === 'conversas') {
+      renderizarConversas(msg.lista || []);
+      return;
+    }
+
+    if (msg.tipo === 'conversaAberta') {
+      cardConversas.classList.add('hidden');
+      // Conversa mudou no PC — a lista de documentos é da conversa
+      // anterior ainda, então já pede o estado novo (deve vir vazia, já
+      // que é outra conversa) e sugere escanear de novo.
+      documentosAtuais = [];
+      renderizarLista();
+      return;
+    }
+
     if (msg.tipo === 'erro') {
       alert('Erro: ' + msg.mensagem);
       btnIniciar.textContent = 'Iniciar processo (Cotas)';
       btnEscanear.textContent = '🔍 Escanear conversa';
+      if (!cardConversas.classList.contains('hidden')) {
+        statusConversas.textContent = 'Falha ao carregar. Tenta de novo.';
+      }
       return;
     }
   }
@@ -280,6 +323,49 @@
       listaDocs.appendChild(row);
     });
   }
+
+  function renderizarConversas(lista) {
+    listaConversasEl.innerHTML = '';
+    if (lista.length === 0) {
+      statusConversas.textContent = 'Nenhuma conversa encontrada.';
+      return;
+    }
+    statusConversas.textContent = 'Toque numa conversa pra abrir no PC:';
+    lista.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'conversa-row';
+
+      const nome = document.createElement('div');
+      nome.className = 'conversa-nome';
+      nome.textContent = c.nome;
+      row.appendChild(nome);
+
+      if (c.naoLidas > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'conversa-badge';
+        badge.textContent = c.naoLidas;
+        row.appendChild(badge);
+      }
+
+      row.addEventListener('click', () => {
+        statusConversas.textContent = `Abrindo "${c.nome}"...`;
+        conn.send({ tipo: 'abrirConversa', chatId: c.id });
+      });
+
+      listaConversasEl.appendChild(row);
+    });
+  }
+
+  btnTrocarConversa.addEventListener('click', () => {
+    cardConversas.classList.remove('hidden');
+    statusConversas.textContent = 'Carregando conversas...';
+    listaConversasEl.innerHTML = '';
+    conn.send({ tipo: 'listarConversas' });
+  });
+
+  btnFecharConversas.addEventListener('click', () => {
+    cardConversas.classList.add('hidden');
+  });
 
   btnEscanear.addEventListener('click', () => {
     btnEscanear.textContent = '🔍 Escaneando...';
