@@ -36,6 +36,16 @@
   .status { font-size: 13px; color: var(--gray-500); text-align: center; margin-bottom: 4px; }
   .status.ok { color: var(--accent); font-weight: 600; }
   .status.erro { color: var(--danger); font-weight: 600; }
+  /* Badge de conexão SEMPRE visível — antes o único indicador ficava
+     dentro do cartão que é escondido assim que conecta, então uma queda
+     de conexão no meio do uso passava despercebida. Esse fica fixo no
+     topo o tempo todo, conectado ou não. */
+  #connBadge {
+    position: sticky; top: 0; z-index: 10; text-align: center; font-size: 12px;
+    font-weight: 600; padding: 6px 10px; border-radius: 8px; margin-bottom: 14px;
+  }
+  #connBadge.ok { background: var(--accent-soft); color: var(--accent); }
+  #connBadge.erro { background: var(--warn-soft); color: var(--warn); }
   .doc-row { padding: 12px 0; border-bottom: 1px solid var(--gray-100); }
   .doc-row:last-child { border-bottom: none; }
   .doc-name { font-size: 13.5px; margin-bottom: 8px; word-break: break-all; }
@@ -60,6 +70,8 @@
 <body>
 <main class="wrap">
   <h1>Classificador remoto — Cotas</h1>
+
+  <div id="connBadge" class="hidden"></div>
 
   <div class="card" id="cardConexao">
     <div class="status" id="status">Digite o código mostrado no PC</div>
@@ -107,6 +119,7 @@
 <script>
 (function () {
   const statusEl = document.getElementById('status');
+  const connBadge = document.getElementById('connBadge');
   const inputCodigo = document.getElementById('inputCodigo');
   const btnConectar = document.getElementById('btnConectar');
   const cardConexao = document.getElementById('cardConexao');
@@ -124,6 +137,12 @@
   function setStatus(texto, classe) {
     statusEl.textContent = texto;
     statusEl.className = 'status' + (classe ? ' ' + classe : '');
+  }
+
+  function setConnBadge(texto, classe) {
+    connBadge.textContent = texto;
+    connBadge.className = classe || '';
+    connBadge.classList.remove('hidden');
   }
 
   btnConectar.addEventListener('click', () => {
@@ -146,6 +165,7 @@
 
       conn.on('open', () => {
         setStatus('Conectado ao PC!', 'ok');
+        setConnBadge('🟢 Conectado ao PC', 'ok');
         cardConexao.classList.add('hidden');
         cardAcoes.classList.remove('hidden');
         cardLista.classList.remove('hidden');
@@ -155,6 +175,7 @@
 
       conn.on('close', () => {
         setStatus('Desconectado do PC. Recarregue a página pra tentar de novo.', 'erro');
+        setConnBadge('🔴 Desconectado do PC — recarregue a página', 'erro');
         cardAcoes.classList.add('hidden');
         cardLista.classList.add('hidden');
         cardConexao.classList.remove('hidden');
@@ -164,6 +185,7 @@
       conn.on('error', (err) => {
         console.error('Erro na conexão:', err);
         setStatus('Erro na conexão: ' + (err.message || err), 'erro');
+        setConnBadge('🔴 Erro na conexão — ' + (err.message || err), 'erro');
         btnConectar.disabled = false;
       });
     });
@@ -176,11 +198,13 @@
   }
 
   function tratarMensagemDoPc(msg) {
+    console.log('[LTB-CELULAR] Mensagem do PC:', msg);
     if (!msg || !msg.tipo) return;
 
     if (msg.tipo === 'estado') {
       documentosAtuais = msg.documentos || [];
       categoriasAtuais = msg.categorias || [];
+      console.log(`[LTB-CELULAR] Estado recebido: ${documentosAtuais.length} documento(s) —`, documentosAtuais.map((d) => d.filename));
       renderizarLista();
       return;
     }
@@ -257,7 +281,11 @@
   btnEscanear.addEventListener('click', () => {
     btnEscanear.textContent = '🔍 Escaneando...';
     conn.send({ tipo: 'escanear' });
-    setTimeout(() => (btnEscanear.textContent = '🔍 Escanear conversa'), 4000);
+    // 50 anexos podem levar bem mais que alguns segundos pra baixar —
+    // esse timeout é só cosmético (volta o texto do botão), não afeta o
+    // escaneamento em si nem a lista, que atualiza sozinha quando os
+    // dados chegam.
+    setTimeout(() => (btnEscanear.textContent = '🔍 Escanear conversa'), 15000);
   });
 
   btnIniciar.addEventListener('click', () => {
