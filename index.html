@@ -186,7 +186,15 @@
     setStatus('Conectando...');
     btnConectar.disabled = true;
 
-    const meuPeer = new Peer(undefined, { debug: 1 });
+    // Mesmo TURN de reserva do lado do PC (ver pareamento.js pro
+    // comentário completo) — precisa ser igual dos dois lados.
+    const ICE_SERVERS = [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+      { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+    ];
+    const meuPeer = new Peer(undefined, { debug: 1, config: { iceServers: ICE_SERVERS } });
 
     meuPeer.on('open', () => {
       conn = meuPeer.connect('ltb-pareamento-' + codigo, { reliable: true });
