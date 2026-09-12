@@ -76,6 +76,13 @@
   .aviso-modal { background: var(--card-bg); border-radius: 14px; padding: 20px; max-width: 380px; }
   .aviso-modal p { font-size: 14px; line-height: 1.5; }
   .aviso-modal .doc-row-actions { margin-top: 16px; }
+  /* NOVO — pré-visualização de foto, sob demanda */
+  .doc-name.tem-preview { cursor: pointer; color: var(--accent); text-decoration: underline; }
+  .preview-modal { background: var(--card-bg); border-radius: 14px; padding: 16px; max-width: 92vw; max-height: 88vh;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .preview-modal img { max-width: 100%; max-height: 70vh; border-radius: 8px; object-fit: contain; }
+  .preview-modal .status { margin: 0; }
+  .preview-modal button { width: auto; padding: 0 20px; }
 </style>
 </head>
 <body>
@@ -125,6 +132,15 @@
   </div>
 </div>
 
+<!-- NOVO — pré-visualização de foto, sob demanda (só fotos; PDF fica de fora) -->
+<div class="aviso-modal-bg hidden" id="modalPreview">
+  <div class="preview-modal">
+    <p class="status" id="previewStatus">Carregando...</p>
+    <img id="previewImg" class="hidden" alt="Pré-visualização" />
+    <button id="btnFecharPreview">Fechar</button>
+  </div>
+</div>
+
 
 <script>
 /* Supabase JS (client UMD build), MIT — embutido inline pra essa página
@@ -166,6 +182,10 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   const btnIniciar = document.getElementById('btnIniciar');
   const btnTest = document.getElementById('btnTest');
   const modalAviso = document.getElementById('modalAviso');
+  const modalPreview = document.getElementById('modalPreview');
+  const previewStatus = document.getElementById('previewStatus');
+  const previewImg = document.getElementById('previewImg');
+  const btnFecharPreview = document.getElementById('btnFecharPreview');
 
   const SUPABASE_URL = 'https://ekufpccqmevmzvyzxckh.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_gIUTCvneqZ3mvopjs2kNiQ_AJWj_DmE';
@@ -306,6 +326,33 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       }
       return;
     }
+
+    // NOVO — pré-visualização de foto sob demanda.
+    if (msg.tipo === 'preview') {
+      if (modalPreview.classList.contains('hidden')) return; // já fechou o modal antes de chegar
+      previewStatus.classList.add('hidden');
+      previewImg.src = `data:${msg.mimeType || 'image/jpeg'};base64,${msg.dataBase64}`;
+      previewImg.classList.remove('hidden');
+      return;
+    }
+
+    if (msg.tipo === 'previewErro') {
+      if (modalPreview.classList.contains('hidden')) return;
+      previewStatus.textContent = msg.mensagem || 'Não consegui carregar a pré-visualização.';
+      previewStatus.classList.remove('hidden');
+      return;
+    }
+  }
+
+  // NOVO — pré-visualização de foto sob demanda. Pede só os bytes desse
+  // documento (não da lista toda) — mesmo espírito de "estado" leve.
+  function pedirPreview(id) {
+    previewStatus.textContent = 'Carregando...';
+    previewStatus.classList.remove('hidden');
+    previewImg.classList.add('hidden');
+    previewImg.src = '';
+    modalPreview.classList.remove('hidden');
+    conn?.send({ tipo: 'pedirPreview', id });
   }
 
   function renderizarLista() {
@@ -321,6 +368,12 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       const nome = document.createElement('div');
       nome.className = 'doc-name';
       nome.textContent = doc.filename;
+      // NOVO — pré-visualização sob demanda, só pra fotos (mimeType
+      // começando com "image/"); PDF fica sem miniatura, como antes.
+      if ((doc.mimeType || '').startsWith('image/')) {
+        nome.classList.add('tem-preview');
+        nome.addEventListener('click', () => pedirPreview(doc.id));
+      }
       row.appendChild(nome);
 
       const select = document.createElement('select');
@@ -430,6 +483,11 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
   document.getElementById('btnAvisoConfirmar').addEventListener('click', () => {
     modalAviso.classList.add('hidden');
     conn.send({ tipo: 'confirmarMesmoCliente', confirmar: true });
+  });
+
+  btnFecharPreview.addEventListener('click', () => {
+    modalPreview.classList.add('hidden');
+    previewImg.src = ''; // libera a memória da imagem carregada
   });
 })();
 </script>
